@@ -22,12 +22,23 @@ export function useWebSerial() {
       let port;
       const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
       
+      // On Android, natively supported Web Serial often misses CH340/CP2102 devices.
+      // So we prioritize the WebUSB polyfill if WebUSB is available.
       if (isAndroid && typeof navigator !== "undefined" && (navigator as any).usb) {
-        const { serial: polyfillSerial } = await import("web-serial-polyfill");
-        port = await polyfillSerial.requestPort();
+        try {
+          const { serial: polyfillSerial } = await import("web-serial-polyfill");
+          port = await polyfillSerial.requestPort();
+        } catch (e) {
+          // Fallback to native Web Serial if polyfill fails or user cancels
+          if ((navigator as any).serial) {
+             port = await (navigator as any).serial.requestPort();
+          } else {
+             throw e;
+          }
+        }
       } else {
         if (typeof navigator === "undefined" || !(navigator as any).serial) {
-          throw new Error("Web Serial API is not supported.");
+          throw new Error("Web Serial API is not supported in this browser context.");
         }
         port = await (navigator as any).serial.requestPort();
       }
