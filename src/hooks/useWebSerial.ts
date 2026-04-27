@@ -45,6 +45,12 @@ export function useWebSerial() {
 
       await port.open({ baudRate: 115200 });
       
+      try {
+        await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      } catch (signalErr) {
+        console.warn("Could not set DTR/RTS signals (some devices do not support this):", signalErr);
+      }
+      
       setStatus({ port, connected: true, error: null });
       readLoop(port);
     } catch (err: any) {

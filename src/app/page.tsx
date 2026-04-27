@@ -31,6 +31,9 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [autoRange, setAutoRange] = useState(true);
   const [customColors, setCustomColors] = useState({ start: "#0000ff", mid: "#00ff00", end: "#ff0000" });
+  const [useNetworkStream, setUseNetworkStream] = useState(false);
+  const [networkStreamUrl, setNetworkStreamUrl] = useState("http://192.168.1.100:8080/video");
+  const imageRef = useRef<HTMLImageElement | null>(null);
   
   // Calibration
   const [thermalScale, setThermalScale] = useState(1.5);
@@ -86,24 +89,29 @@ export default function Dashboard() {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     const interval = setInterval(() => {
-      if (videoRef.current && ctx) {
+      const source = useNetworkStream ? imageRef.current : videoRef.current;
+      if (source && ctx) {
         canvas.width = 10; // Low res for speed
         canvas.height = 10;
-        ctx.drawImage(videoRef.current, 0, 0, 10, 10);
-        const data = ctx.getImageData(0, 0, 10, 10).data;
-        let total = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          total += (data[i] + data[i+1] + data[i+2]) / 3;
-        }
-        const avg = total / (data.length / 4);
-        setBrightness(avg);
+        try {
+          ctx.drawImage(source, 0, 0, 10, 10);
+          const data = ctx.getImageData(0, 0, 10, 10).data;
+          let total = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            total += (data[i] + data[i+1] + data[i+2]) / 3;
+          }
+          const avg = total / (data.length / 4);
+          setBrightness(avg);
 
-        // Logic: If dark, switch to Thermal Overlay
-        if (avg < 50 && viewMode === "camera") {
-           setViewMode("overlay");
-        } else if (avg > 150 && viewMode !== "camera") {
-           // If bright, switch to Camera Only
-           setViewMode("camera");
+          // Logic: If dark, switch to Thermal Overlay
+          if (avg < 50 && viewMode === "camera") {
+             setViewMode("overlay");
+          } else if (avg > 150 && viewMode !== "camera") {
+             // If bright, switch to Camera Only
+             setViewMode("camera");
+          }
+        } catch(e) {
+          // ignore CORS errors from IP cameras
         }
       }
     }, 1000);
@@ -156,12 +164,22 @@ export default function Dashboard() {
           <div className="absolute inset-0 flex flex-row">
             {/* Split Camera */}
             <div className="w-1/2 h-full border-r border-zinc-900 relative overflow-hidden flex items-center justify-center">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                className="w-full h-full object-cover grayscale contrast-125"
-              />
+              {useNetworkStream ? (
+                <img 
+                  ref={imageRef}
+                  src={networkStreamUrl} 
+                  alt="Network Stream"
+                  crossOrigin="anonymous"
+                  className="w-full h-full object-cover grayscale contrast-125"
+                />
+              ) : (
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  className="w-full h-full object-cover grayscale contrast-125"
+                />
+              )}
             </div>
             {/* Split Thermal */}
             <div className="w-1/2 h-full relative overflow-hidden bg-black flex items-center justify-center">
@@ -181,12 +199,22 @@ export default function Dashboard() {
           <div className="absolute inset-0 flex items-center justify-center">
             {/* Solo/Overlay Camera */}
             {(viewMode === 'camera' || viewMode === 'overlay') && (
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                className={`absolute inset-0 w-full h-full object-cover grayscale contrast-125 transition-opacity ${viewMode === 'camera' ? 'opacity-100' : 'opacity-80'}`}
-              />
+              useNetworkStream ? (
+                <img 
+                  ref={imageRef}
+                  src={networkStreamUrl} 
+                  alt="Network Stream"
+                  crossOrigin="anonymous"
+                  className={`absolute inset-0 w-full h-full object-cover grayscale contrast-125 transition-opacity ${viewMode === 'camera' ? 'opacity-100' : 'opacity-80'}`}
+                />
+              ) : (
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  className={`absolute inset-0 w-full h-full object-cover grayscale contrast-125 transition-opacity ${viewMode === 'camera' ? 'opacity-100' : 'opacity-80'}`}
+                />
+              )
             )}
 
             {/* Solo/Overlay Thermal */}
@@ -256,7 +284,17 @@ export default function Dashboard() {
               </div>
               <h2 className="text-xl font-bold italic tracking-tighter">HARDWARE DISCONNECTED</h2>
               <p className="text-zinc-500 text-sm max-w-xs">Ensure USB Camera and Arduino are plugged in via USB-OTG Hub.</p>
-                <div className="flex flex-col gap-3 w-full max-w-xs">
+              <div className="flex flex-col gap-3 w-full max-w-xs">
+                {typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent) && (
+                  <div className="bg-hud-orange/20 border border-hud-orange/50 p-3 rounded-xl text-left mb-2">
+                    <strong className="text-hud-orange block text-xs mb-1 uppercase">Android Limitations</strong>
+                    <ul className="text-zinc-300 text-[10px] space-y-1 list-disc pl-4">
+                      <li>Chrome on Android <b>cannot</b> see external USB cameras. It will only use your phone's built-in camera.</li>
+                      <li>For the Thermal feed, tap INIT THERMAL and select <b>"Unknown device"</b> (not LAN).</li>
+                      <li>Ensure no other USB apps are open, as they may block access.</li>
+                    </ul>
+                  </div>
+                )}
                 <button 
                   onClick={() => bootSystem()}
                   className="bg-hud-cyan text-black px-6 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,242,255,0.3)]"
@@ -294,6 +332,14 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+              )}
+              {useNetworkStream && !stream && (
+                <button 
+                  onClick={() => setShowConfig(true)}
+                  className="text-xs text-hud-cyan underline"
+                >
+                  Configure Network Stream URL
+                </button>
               )}
             </motion.div>
           </div>
@@ -486,18 +532,43 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-xs font-bold text-zinc-500 uppercase">Input Selection</label>
-                  <div className="space-y-2">
-                    {devices.map(device => (
-                      <button 
-                        key={device.deviceId}
-                        onClick={() => startCamera(device.deviceId)}
-                        className="w-full text-left bg-zinc-900/50 border border-zinc-800 p-3 rounded-xl text-xs hover:border-hud-cyan transition-colors"
-                      >
-                        {device.label || `Camera ${device.deviceId.slice(0, 5)}`}
-                      </button>
-                    ))}
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Input Selection</label>
+                    <button 
+                      onClick={() => setUseNetworkStream(!useNetworkStream)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${useNetworkStream ? 'bg-hud-orange text-black border-hud-orange' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                    >
+                      IP CAMERA
+                    </button>
                   </div>
+                  
+                  {useNetworkStream ? (
+                    <div className="space-y-2">
+                      <span className="text-[10px] text-zinc-400">NETWORK STREAM URL (MJPEG/JPG)</span>
+                      <input 
+                        type="text" 
+                        value={networkStreamUrl} 
+                        onChange={(e) => setNetworkStreamUrl(e.target.value)}
+                        placeholder="http://192.168.1.100:8080/video"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs text-hud-cyan font-mono"
+                      />
+                      <p className="text-[9px] text-zinc-500 leading-tight mt-2">
+                        Enter the local IP address of your Android IP Camera app. This bypasses Chrome's USB camera restrictions.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {devices.map(device => (
+                        <button 
+                          key={device.deviceId}
+                          onClick={() => startCamera(device.deviceId)}
+                          className="w-full text-left bg-zinc-900/50 border border-zinc-800 p-3 rounded-xl text-xs hover:border-hud-cyan transition-colors"
+                        >
+                          {device.label || `Camera ${device.deviceId.slice(0, 5)}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <button 
