@@ -29,8 +29,8 @@ export function useCamera() {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : true
+      const constraints: MediaStreamConstraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } }
       };
 
       if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
