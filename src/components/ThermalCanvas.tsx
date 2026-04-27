@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ThermalGrid, getIronbowColor, getHeatmapColor } from "@/lib/thermalUtils";
+import { ThermalGrid, getIronbowColor, getHeatmapColor, getCustomColor } from "@/lib/thermalUtils";
 
 interface ThermalCanvasProps {
   grid: ThermalGrid;
@@ -10,7 +10,8 @@ interface ThermalCanvasProps {
   width?: number;
   height?: number;
   opacity?: number;
-  palette?: "ironbow" | "heatmap";
+  palette?: "ironbow" | "heatmap" | "custom";
+  customColors?: { start: string; mid: string; end: string };
 }
 
 export default function ThermalCanvas({
@@ -21,6 +22,7 @@ export default function ThermalCanvas({
   height = 320,
   opacity = 1,
   palette = "ironbow",
+  customColors,
 }: ThermalCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -39,7 +41,9 @@ export default function ThermalCanvas({
       for (let y = 0; y < 8; y++) {
         for (let x = 0; x < 8; x++) {
           const val = grid[y][x];
-          const color = palette === "ironbow" 
+          const color = palette === "custom" && customColors
+            ? getCustomColor(val, minTemp, maxTemp, customColors.start, customColors.mid, customColors.end)
+            : palette === "ironbow" 
             ? getIronbowColor(val, minTemp, maxTemp)
             : getHeatmapColor(val, minTemp, maxTemp);
           ctx.fillStyle = color;
@@ -50,7 +54,7 @@ export default function ThermalCanvas({
 
     animationFrameId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [grid, minTemp, maxTemp, palette]);
+  }, [grid, minTemp, maxTemp, palette, customColors]);
 
   return (
     <div style={{ width, height, position: "relative" }}>

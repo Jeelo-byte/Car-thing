@@ -67,3 +67,35 @@ export function getHeatmapColor(value: number, min: number, max: number): string
   const hue = (1 - t) * 240; 
   return `hsl(${hue}, 100%, 50%)`;
 }
+
+function hexToRgb(hex: string) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 };
+}
+
+export function getCustomColor(value: number, min: number, max: number, startHex: string, midHex: string, endHex: string): string {
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  
+  const start = hexToRgb(startHex);
+  const mid = hexToRgb(midHex);
+  const end = hexToRgb(endHex);
+
+  let r, g, b;
+  if (t < 0.5) {
+    const t2 = t * 2; // 0 to 1
+    r = Math.round(start.r + t2 * (mid.r - start.r));
+    g = Math.round(start.g + t2 * (mid.g - start.g));
+    b = Math.round(start.b + t2 * (mid.b - start.b));
+  } else {
+    const t2 = (t - 0.5) * 2; // 0 to 1
+    r = Math.round(mid.r + t2 * (end.r - mid.r));
+    g = Math.round(mid.g + t2 * (end.g - mid.g));
+    b = Math.round(mid.b + t2 * (end.b - mid.b));
+  }
+  
+  return `rgb(${r}, ${g}, ${b})`;
+}

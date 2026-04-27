@@ -24,11 +24,13 @@ export default function Dashboard() {
   const [maxThreshold, setMaxThreshold] = useState(30);
   const [overlayOpacity, setOverlayOpacity] = useState(0.5);
   const [showConfig, setShowConfig] = useState(false);
-  const [palette, setPalette] = useState<"ironbow" | "heatmap">("ironbow");
+  const [palette, setPalette] = useState<"ironbow" | "heatmap" | "custom">("ironbow");
   const [viewMode, setViewMode] = useState<"overlay" | "split" | "thermal" | "camera">("overlay");
   const [autoSwitch, setAutoSwitch] = useState(false);
   const [brightness, setBrightness] = useState(100);
   const [mounted, setMounted] = useState(false);
+  const [autoRange, setAutoRange] = useState(true);
+  const [customColors, setCustomColors] = useState({ start: "#0000ff", mid: "#00ff00", end: "#ff0000" });
   
   // Calibration
   const [thermalScale, setThermalScale] = useState(1.5);
@@ -45,6 +47,9 @@ export default function Dashboard() {
       avg: (flat.reduce((a, b) => a + b, 0) / flat.length).toFixed(1),
     };
   }, [thermalGrid]);
+
+  const activeMin = autoRange ? parseFloat(stats.min) : minThreshold;
+  const activeMax = autoRange ? parseFloat(stats.max) : maxThreshold;
 
   // Handle thermal data parsing
   useEffect(() => {
@@ -162,12 +167,13 @@ export default function Dashboard() {
             <div className="w-1/2 h-full relative overflow-hidden bg-black flex items-center justify-center">
                <ThermalCanvas 
                   grid={thermalGrid} 
-                  minTemp={minThreshold} 
-                  maxTemp={maxThreshold} 
+                  minTemp={activeMin} 
+                  maxTemp={activeMax} 
                   opacity={1}
                   width={800}
                   height={600}
                   palette={palette}
+                  customColors={customColors}
                />
             </div>
           </div>
@@ -196,12 +202,13 @@ export default function Dashboard() {
               >
                 <ThermalCanvas 
                   grid={thermalGrid} 
-                  minTemp={minThreshold} 
-                  maxTemp={maxThreshold} 
+                  minTemp={activeMin} 
+                  maxTemp={activeMax} 
                   opacity={viewMode === 'overlay' ? overlayOpacity : 1}
                   width={1280}
                   height={720}
                   palette={palette}
+                  customColors={customColors}
                 />
               </div>
             )}
@@ -366,7 +373,7 @@ export default function Dashboard() {
               </h3>
               
               <div className="space-y-8">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button 
                       onClick={() => setPalette("ironbow")}
                       className={`p-2 rounded-lg text-[10px] font-bold border transition-all ${palette === 'ironbow' ? 'bg-hud-cyan text-black border-hud-cyan' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
@@ -379,7 +386,30 @@ export default function Dashboard() {
                     >
                       HEATMAP
                     </button>
+                    <button 
+                      onClick={() => setPalette("custom")}
+                      className={`p-2 rounded-lg text-[10px] font-bold border transition-all ${palette === 'custom' ? 'bg-hud-cyan text-black border-hud-cyan' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                    >
+                      CUSTOM
+                    </button>
                   </div>
+
+                  {palette === 'custom' && (
+                    <div className="flex justify-between items-center bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-zinc-500 uppercase mb-2 font-bold">Cold</span>
+                        <input type="color" value={customColors.start} onChange={(e) => setCustomColors({ ...customColors, start: e.target.value })} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-zinc-500 uppercase mb-2 font-bold">Mid</span>
+                        <input type="color" value={customColors.mid} onChange={(e) => setCustomColors({ ...customColors, mid: e.target.value })} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-zinc-500 uppercase mb-2 font-bold">Hot</span>
+                        <input type="color" value={customColors.end} onChange={(e) => setCustomColors({ ...customColors, end: e.target.value })} className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                      </div>
+                    </div>
+                  )}
 
                 <div className="space-y-4">
                   <label className="text-xs font-bold text-zinc-500 uppercase">Alignment Calibration</label>
@@ -424,14 +454,23 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-xs font-bold text-zinc-500 uppercase">Thermal Calibration</label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-zinc-500 uppercase">Thermal Calibration</label>
+                    <button 
+                      onClick={() => setAutoRange(!autoRange)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${autoRange ? 'bg-hud-cyan text-black border-hud-cyan' : 'bg-zinc-900 border-zinc-800 text-zinc-400'}`}
+                    >
+                      AUTO RANGE
+                    </button>
+                  </div>
+                  <div className={`grid grid-cols-2 gap-4 transition-opacity duration-300 ${autoRange ? 'opacity-30 pointer-events-none grayscale' : 'opacity-100'}`}>
                     <div className="space-y-1">
                       <span className="text-[10px] text-zinc-400">MIN TEMP</span>
                       <input 
                         type="number" value={minThreshold} 
                         onChange={(e) => setMinThreshold(parseInt(e.target.value))}
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm text-hud-cyan"
+                        disabled={autoRange}
                       />
                     </div>
                     <div className="space-y-1">
@@ -440,6 +479,7 @@ export default function Dashboard() {
                         type="number" value={maxThreshold} 
                         onChange={(e) => setMaxThreshold(parseInt(e.target.value))}
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-sm text-hud-orange"
+                        disabled={autoRange}
                       />
                     </div>
                   </div>
