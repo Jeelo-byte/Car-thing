@@ -20,19 +20,22 @@ export function useWebSerial() {
   const connect = useCallback(async () => {
     try {
       let port;
+      const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
       if (typeof navigator !== "undefined") {
-        if ((navigator as any).serial) {
+        if (isAndroid && (navigator as any).usb) {
           try {
-            port = await (navigator as any).serial.requestPort();
+            const { serial: polyfillSerial } = await import("web-serial-polyfill");
+            port = await polyfillSerial.requestPort();
           } catch (e) {
-            console.warn("Native Web Serial failed or user cancelled, trying polyfill", e);
-            if ((navigator as any).usb) {
-              const { serial: polyfillSerial } = await import("web-serial-polyfill");
-              port = await polyfillSerial.requestPort();
+            if ((navigator as any).serial) {
+               port = await (navigator as any).serial.requestPort();
             } else {
-              throw e;
+               throw e;
             }
           }
+        } else if ((navigator as any).serial) {
+          port = await (navigator as any).serial.requestPort();
         } else if ((navigator as any).usb) {
           const { serial: polyfillSerial } = await import("web-serial-polyfill");
           port = await polyfillSerial.requestPort();
