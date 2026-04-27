@@ -21,27 +21,15 @@ export function useWebSerial() {
     try {
       let port;
       const isAndroid = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
-
-      if (typeof navigator !== "undefined") {
-        if (isAndroid && (navigator as any).usb) {
-          try {
-            const { serial: polyfillSerial } = await import("web-serial-polyfill");
-            port = await polyfillSerial.requestPort();
-          } catch (e) {
-            if ((navigator as any).serial) {
-               port = await (navigator as any).serial.requestPort();
-            } else {
-               throw e;
-            }
-          }
-        } else if ((navigator as any).serial) {
-          port = await (navigator as any).serial.requestPort();
-        } else if ((navigator as any).usb) {
-          const { serial: polyfillSerial } = await import("web-serial-polyfill");
-          port = await polyfillSerial.requestPort();
-        } else {
-          throw new Error("Web Serial API is not supported in this browser context.");
+      
+      if (isAndroid && typeof navigator !== "undefined" && (navigator as any).usb) {
+        const { serial: polyfillSerial } = await import("web-serial-polyfill");
+        port = await polyfillSerial.requestPort();
+      } else {
+        if (typeof navigator === "undefined" || !(navigator as any).serial) {
+          throw new Error("Web Serial API is not supported.");
         }
+        port = await (navigator as any).serial.requestPort();
       }
 
       await port.open({ baudRate: 115200 });
